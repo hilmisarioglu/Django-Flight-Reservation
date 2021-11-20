@@ -300,4 +300,107 @@ urlpatterns += router.urls
 
 python manage.py migrate
 
+permissions.py olustur
+from rest_framework import permissions
 
+class IsStuffOrReadOnly(permissions.IsAdminUser):
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        else:
+            return bool(request.user and request.user.is_staff)
+
+views.py degistir 
+from django.shortcuts import render
+from .models import Flight, Reservation, Passenger
+from .serializers import FlightSerializer
+from rest_framework import viewsets
+from .permissions import IsStuffOrReadOnly
+
+# Create your views here.
+
+class FlightView(viewsets.ModelViewSet):
+    queryset = Flight.objects.all()
+    serializer_class = FlightSerializer
+    permission_classes = (IsStuffOrReadOnly,)
+
+serializers.py ekle 
+from rest_framework import serializers
+from .models import Flight , Passenger , Reservation 
+
+class FlightSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Flight 
+        fields = '__all__'  
+        
+class PassengerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Passenger
+        fields = '__all__'
+        
+class ReservationSerializer(serializers.ModelSerializer):
+    passanger = PassengerSerializer(many = True, required = False)
+    flight_id =serializers.IntegerField()
+    user = serializers.StringRelatedField()
+    user_id = serializers.IntegerField(required=False , write_only = True)
+    
+    class Meta :
+        model = Reservation
+        fields = {
+            'id',
+            'flight_id',
+            'passenger',
+            'user',
+            'user_id'
+        }
+    
+    def create(self , validated_data):
+        print(validated_data)
+        passenger_data = validated_data.pop('passenger')
+        print(validated_data)
+        validated_data['user_id'] = self.context['request'].user.id
+        reservation = Reservation.objects.create(**validated_data)
+        for passenger in passenger_data:
+            reservation.passenger.add(Passenger.objects.create(**passenger))
+        reservation.save()
+        return reservation
+       
+        # [
+        #     {
+        #         },
+        #     {},
+        # ]
+    
+views.py ekle 
+from django.shortcuts import render
+from .models import Flight, Reservation, Passenger
+from .serializers import FlightSerializer , ReservationSerializer
+from rest_framework import viewsets
+from .permissions import IsStuffOrReadOnly
+
+# Create your views here.
+
+class FlightView(viewsets.ModelViewSet):
+    queryset = Flight.objects.all()
+    serializer_class = FlightSerializer
+    permission_classes = (IsStuffOrReadOnly,)
+
+class ReservationView(viewsets.ModelViewSet):
+    queryset = Reservation.objects.all()
+    serializer_class = ReservationSerializer
+
+
+urls.py ekle 
+from django.urls import path
+from .views import FlightView , ReservationView
+from rest_framework import routers
+
+router = routers.DefaultRouter()
+router.register('flights', FlightView)
+router.register('resv', ReservationView)
+
+urlpatterns = [
+
+]
+
+urlpatterns += router.urls 
