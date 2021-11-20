@@ -403,4 +403,125 @@ urlpatterns = [
 
 ]
 
-urlpatterns += router.urls 
+urlpatterns += router.urls
+
+views.py degistir 
+from django.shortcuts import render
+from .models import Flight, Reservation, Passenger
+from .serializers import FlightSerializer , ReservationSerializer
+from rest_framework import viewsets , filters
+from .permissions import IsStuffOrReadOnly
+
+# Create your views here.
+
+class FlightView(viewsets.ModelViewSet):
+    queryset = Flight.objects.all()
+    serializer_class = FlightSerializer
+    permission_classes = (IsStuffOrReadOnly,)
+    filter_backends = (filters.SearchFilter,)
+    search_fields = ("departureCity" , "arrivalCity","dateOfDeparture")
+
+class ReservationView(viewsets.ModelViewSet):
+    queryset = Reservation.objects.all()
+    serializer_class = ReservationSerializer
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_staff:
+            return queryset 
+        return queryset.filter(user=self.request.user)
+
+serializer degistir 
+from rest_framework import serializers
+from .models import Flight , Passenger , Reservation 
+
+class FlightSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Flight 
+        fields = '__all__'  
+        
+class PassengerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Passenger
+        fields = '__all__'
+        
+class ReservationSerializer(serializers.ModelSerializer):
+    passanger = PassengerSerializer(many = True, required = False)
+    flight_id =serializers.IntegerField()
+    user = serializers.StringRelatedField()
+    user_id = serializers.IntegerField(required=False , write_only = True)
+    
+    class Meta :
+        model = Reservation
+        fields = {
+            'id',
+            'flight_id',
+            'passenger',
+            'user',
+            'user_id'
+        }
+    
+    def create(self , validated_data):
+        print(validated_data)
+        passenger_data = validated_data.pop('passenger')
+        print(validated_data)
+        validated_data['user_id'] = self.context['request'].user.id
+        reservation = Reservation.objects.create(**validated_data)
+        for passenger in passenger_data:
+            reservation.passenger.add(Passenger.objects.create(**passenger))
+        reservation.save()
+        return reservation
+       
+        # [
+        #     {
+        #         },
+        #     {},
+        # ]
+class StaffFlightSerializer(serializers.ModelSerializer):
+    reservations = ReservationSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Flight
+        fields = (
+            'flightNumber',
+            'operatingAirlines',
+            'departureCity',
+            'arrivalCity'
+            'dateOfDeparture',
+            'estimatedTimeOfDeparture',
+            'reservations'
+        )
+    
+views.py degistir
+from django.shortcuts import render
+from .models import Flight, Reservation, Passenger
+from .serializers import FlightSerializer , ReservationSerializer, StaffFlightSerializer
+from rest_framework import viewsets , filters
+from .permissions import IsStuffOrReadOnly
+
+# Create your views here.
+
+class FlightView(viewsets.ModelViewSet):
+    queryset = Flight.objects.all()
+    serializer_class = FlightSerializer
+    permission_classes = (IsStuffOrReadOnly,)
+    filter_backends = (filters.SearchFilter,)
+    search_fields = ("departureCity" , "arrivalCity","dateOfDeparture")
+    
+    def get_serializer_class(self):
+        if self.request.user.is_staff:
+            return super().get_queryset()
+        return FlightSerializer
+
+class ReservationView(viewsets.ModelViewSet):
+    queryset = Reservation.objects.all()
+    serializer_class = ReservationSerializer
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_staff:
+            return queryset 
+        return queryset.filter(user=self.request.user)
+
+
+    
